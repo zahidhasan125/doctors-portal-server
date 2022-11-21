@@ -37,6 +37,17 @@ async function run() {
         const appointmentOptionsCollections = client.db('doctorsPortal').collection('appointmentOptions');
         const bookingsCollections = client.db('doctorsPortal').collection('bookingsCollections');
         const usersCollections = client.db('doctorsPortal').collection('usersCollections');
+        const doctorsCollections = client.db('doctorsPortal').collection('doctorsCollections');
+
+        const verifyAdmin = async(req, res, next) => {
+            const decodedEmail = req.decoded.email;
+            const query = { email: decodedEmail };
+            const user = await usersCollections.findOne(query);
+            if (user?.role !== 'admin') {
+                return res.status(403).send({ message: "Forbidden" })
+            }
+            next();
+        }
 
         app.get('/appointmentOptions', async (req, res) => {
             const date = req.query.date;
@@ -56,6 +67,12 @@ async function run() {
                 option.slots = remainingSlots;
             })
             res.send(options);
+        })
+
+        app.get('/appointmentSpecialty', async (req, res) => {
+            const query = {};
+            const result = await appointmentOptionsCollections.find(query).project({ name: 1 }).toArray();
+            res.send(result);
         })
 
         app.get('/bookings', verifyJWT, async (req, res) => {
@@ -118,13 +135,8 @@ async function run() {
             res.send(result);
         })
 
-        app.put('/users/admin/:id', verifyJWT, async (req, res) => {
-            const decodedEmail = req.decoded.email;
-            const query = { email: decodedEmail };
-            const user = await usersCollections.findOne(query);
-            if (user?.role !== 'admin') {
-                return res.status(403).send({ message: "Forbidden" })
-            }
+        app.put('/users/admin/:id', verifyJWT, verifyAdmin, async (req, res) => {
+            
 
             const id = req.params.id;
             const filter = { _id: ObjectId(id) };
@@ -136,6 +148,25 @@ async function run() {
             };
             const result = await usersCollections.updateOne(filter, updateDoc, options);
             res.send(result);
+        })
+
+        app.get('/doctors', verifyJWT, verifyAdmin, async (req, res) => {
+            const query = {};
+            const doctors = await doctorsCollections.find(query).toArray();
+            res.send(doctors);
+        })
+
+        app.post('/doctors', verifyJWT, verifyAdmin, async (req, res) => {
+            const doctor = req.body;
+            const result = await doctorsCollections.insertOne(doctor);
+            res.send(result)
+        })
+
+        app.delete('/doctor/:id', verifyJWT, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: ObjectId(id) }
+            const result = await doctorsCollections.deleteOne(query);
+            res.send(result)
         })
     }
     finally {
